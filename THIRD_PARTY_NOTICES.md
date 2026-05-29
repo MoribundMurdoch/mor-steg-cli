@@ -6,7 +6,11 @@ It is not legal advice.
 
 ## MorSteg's own code
 
-MorSteg's original source code, documentation, packaging scripts, and project files are released under the MIT License.
+MorSteg's original source code, documentation, packaging scripts, and project files are licensed under:
+
+```text
+GPL-3.0-or-later
+```
 
 See:
 
@@ -14,13 +18,13 @@ See:
 LICENSE
 ```
 
-The MIT License applies only to MorSteg's own project files. It does not relicense third-party projects, crates, external tools, package-manager dependencies, operating-system components, or build tools.
+That license applies only to MorSteg's own project files. It does not relicense third-party projects, crates, external tools, package-manager dependencies, operating-system components, or build tools.
 
 ## Summary
 
 | Component | How MorSteg uses it | License |
 | --- | --- | --- |
-| MorSteg original project files | This repo's source/docs/packaging | MIT |
+| MorSteg original project files | This repo's source/docs/packaging | GPL-3.0-or-later |
 | `tempfile` | Rust crate dependency for safer temporary workspaces | MIT OR Apache-2.0 |
 | `age` | External encryption command invoked by MorSteg | BSD-3-Clause |
 | `steghide` | External steganography command invoked by MorSteg | GNU GPL; commonly GPL-2.0/GPLv2 in package metadata |
@@ -28,17 +32,17 @@ The MIT License applies only to MorSteg's own project files. It does not relicen
 
 ## Important boundary
 
-MorSteg does not vendor, copy, or relicense `age`, `steghide`, or `bubblewrap`.
+MorSteg does not vendor, copy, link, or relicense `age`, `steghide`, or `bubblewrap`.
 
 MorSteg runs those tools as separate local commands.
 
-MorSteg's release packages may declare those tools as dependencies, recommendations, or optional dependencies. Their own packages should provide their own license files.
+Package managers may install those tools as runtime dependencies, recommended dependencies, or optional dependencies. Their own packages should provide their own license files.
 
-## Why MIT?
+## Why GPL-3.0-or-later?
 
-MorSteg uses the MIT License because it is permissive and widely recognized for software.
+MorSteg uses GPL-3.0-or-later to keep MorSteg's own code copyleft while still clearly separating the licenses of external tools and third-party crates.
 
-MIT is permissive, but it is not the same thing as placing every third-party component in the public domain. Third-party components remain under their own licenses.
+This does not mean `age`, `steghide`, `bubblewrap`, or Rust crate dependencies are relicensed by MorSteg. They remain under their own licenses.
 
 ## tempfile
 
@@ -79,3 +83,5 @@ README.md
 ```
 
 For binary releases, packagers may also generate a complete Rust dependency license report from `Cargo.lock` with tools such as `cargo-about` or `cargo-deny`.
+
+This notice covers the main third-party projects MorSteg directly uses or invokes. It may not be a complete legal bill of materials for every transitive crate in a compiled binary.

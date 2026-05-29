@@ -2,7 +2,7 @@
 name = "mor-steg"
 version = "0.2.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-or-later"
 description = "A noob-friendly Rust CLI front-end for age-encrypted steganography with steghide."
 repository = "https://github.com/MoribundMurdoch/mor-steg-cli"
 homepage = "https://github.com/MoribundMurdoch/mor-steg-cli"
