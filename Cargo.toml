@@ -1,9 +1,56 @@
 [package]
 name = "mor-steg"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "Unlicense"
-description = "A noob-friendly Rust front-end for steghide and age."
+description = "A noob-friendly Rust CLI front-end for age-encrypted steganography with steghide."
+repository = "https://github.com/MoribundMurdoch/mor-steg-cli"
+homepage = "https://github.com/MoribundMurdoch/mor-steg-cli"
+readme = "README.md"
+keywords = ["steganography", "age", "steghide", "cli", "security"]
+categories = ["command-line-utilities", "cryptography"]
 
 [dependencies]
 tempfile = "3"
+
+[package.metadata.deb]
+maintainer = "Moribund Murdoch <moribundmurdoch@gmail.com>"
+copyright = "2026 Moribund Murdoch"
+license-file = ["LICENSE", "0"]
+extended-description = """
+MorSteg is a noob-friendly CLI helper for age-encrypted steganography with steghide.
+It can hide/open files, manage age keys, create cloud-safe .MorSteg.zip packages,
+and optionally run through a Bubblewrap sandbox launcher.
+"""
+depends = "$auto, age"
+recommends = "steghide"
+suggests = "bubblewrap"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/mor-steg", "usr/bin/mor-steg", "755"],
+    ["packaging/arch/mor-steg-sandboxed", "usr/bin/mor-steg-sandboxed", "755"],
+    ["packaging/arch/mor-steg.desktop", "usr/share/applications/mor-steg.desktop", "644"],
+    ["packaging/arch/mor-steg-sandboxed.desktop", "usr/share/applications/mor-steg-sandboxed.desktop", "644"],
+    ["assets/mor-steg.png", "usr/share/icons/hicolor/256x256/apps/mor-steg.png", "644"],
+    ["README.md", "usr/share/doc/mor-steg/README.md", "644"],
+    ["LICENSE", "usr/share/licenses/mor-steg/LICENSE", "644"],
+]
+
+[package.metadata.generate-rpm]
+assets = [
+    { source = "target/release/mor-steg", dest = "/usr/bin/mor-steg", mode = "755" },
+    { source = "packaging/arch/mor-steg-sandboxed", dest = "/usr/bin/mor-steg-sandboxed", mode = "755" },
+    { source = "packaging/arch/mor-steg.desktop", dest = "/usr/share/applications/mor-steg.desktop", mode = "644" },
+    { source = "packaging/arch/mor-steg-sandboxed.desktop", dest = "/usr/share/applications/mor-steg-sandboxed.desktop", mode = "644" },
+    { source = "assets/mor-steg.png", dest = "/usr/share/icons/hicolor/256x256/apps/mor-steg.png", mode = "644" },
+    { source = "README.md", dest = "/usr/share/doc/mor-steg/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/mor-steg/LICENSE", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+age = "*"
+
+[package.metadata.generate-rpm.recommends]
+steghide = "*"
+bubblewrap = "*"
