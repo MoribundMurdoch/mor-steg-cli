@@ -1,11 +1,11 @@
 use std::io::{self, Write};
 
 pub const BUILD_MARKER: &str =
-    "MOR-STEG WIZARD BUILD 2026-05-29 (Split + PQ-Capable Edition)";
+    "MORSTEG CLI BUILD 2026-05-29 (Cloud-Safe Edition)";
 
 pub fn print_banner() {
     println!("╔════════════════════════════════════════════════╗");
-    println!("║                    MOR-STEG                    ║");
+    println!("║                    MorSteg                     ║");
     println!("║       Friendly Steganography Helper            ║");
     println!("╚════════════════════════════════════════════════╝");
     println!();

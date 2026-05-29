@@ -3,12 +3,13 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::cloud;
 use crate::crypto::{self, DecryptionMode, EncryptionMode};
 use crate::deps;
 use crate::paths::{
-    self, active_key_dir, explain_key_folder, explain_output_folder, prompt_existing_file,
-    prompt_existing_folder, prompt_folder_to_create, prompt_output_file, to_absolute_path,
-    AppConfig,
+    self, active_cloud_dir, active_key_dir, explain_cloud_folder, explain_key_folder,
+    explain_output_folder, prompt_existing_file, prompt_existing_folder, prompt_folder_to_create,
+    prompt_output_file, to_absolute_path, AppConfig,
 };
 use crate::steg;
 use crate::ui::{BUILD_MARKER, clear_screen, confirm, pause, print_banner, prompt, prompt_nonempty};
@@ -25,10 +26,11 @@ pub fn run() {
 
         match &config.output_dir {
             Some(dir) => println!("New steghide/output files save in: {}", dir.display()),
-            None => println!("New steghide/output files save in: the folder you started Mor-SteG from"),
+            None => println!("New steghide/output files save in: the folder you started MorSteg from"),
         }
 
         println!("Age key files save in: {}", active_key_dir(&config).display());
+        println!("Cloud-safe packages save in: {}", active_cloud_dir(&config).display());
 
         println!();
         println!("What do you want to do?\n");
@@ -47,12 +49,18 @@ pub fn run() {
         println!("Save locations:");
         println!("[6] Choose where steghide/output files should be saved");
         println!("[7] Choose where age key files should be saved");
+        println!("[8] Choose where cloud-safe packages should be saved");
+        println!();
+
+        println!("Cloud safety:");
+        println!("[9] Make one steghide file cloud-safe");
+        println!("[10] Make a whole folder of steghide files cloud-safe");
         println!();
 
         println!("Tools:");
-        println!("[8] Check a file for hidden steghide info");
-        println!("[9] Check if Mor-SteG has the tools it needs");
-        println!("[10] Quit\n");
+        println!("[11] Check a file for hidden steghide info");
+        println!("[12] Check if MorSteg has the tools it needs");
+        println!("[13] Quit\n");
 
         println!("Not sure? Use [1] to hide a file and [2] to open it later.\n");
 
@@ -64,9 +72,12 @@ pub fn run() {
             "5" => age_key_helper_flow(&config),
             "6" => choose_output_folder_flow(&mut config),
             "7" => choose_key_folder_flow(&mut config),
-            "8" => inspect_flow(),
-            "9" => check_deps_flow(),
-            "10" | "q" | "quit" | "exit" => {
+            "8" => choose_cloud_folder_flow(&mut config),
+            "9" => cloud_safe_one_file_flow(&config),
+            "10" => cloud_safe_folder_flow(&config),
+            "11" => inspect_flow(),
+            "12" => check_deps_flow(),
+            "13" | "q" | "quit" | "exit" => {
                 println!("Goodbye.");
                 break;
             }
@@ -104,7 +115,7 @@ fn embed_flow(config: &AppConfig, encryption_mode: EncryptionMode) {
 
     println!("Build: {BUILD_MARKER}\n");
     println!("Hide a file inside a normal-looking file.");
-    println!("Mor-SteG first encrypts your secret with age.");
+    println!("MorSteg first encrypts your secret with age.");
     println!("Then it asks steghide to hide that encrypted blob inside the cover file.\n");
 
     crypto::print_mode_note(&encryption_mode);
@@ -268,6 +279,126 @@ fn extract_flow(config: &AppConfig, decryption_mode: DecryptionMode) {
     pause();
 }
 
+fn cloud_safe_one_file_flow(config: &AppConfig) {
+    clear_screen();
+    print_banner();
+
+    println!("Make one steghide file cloud-safe.\n");
+    println!("Use this after you have created a disguised steghide output file.");
+    println!();
+    println!("Why?");
+    println!("  Some cloud/social sites recompress images.");
+    println!("  Recompression can destroy hidden steghide data.");
+    println!("  MorSteg will wrap the exact file bytes in a .MorSteg.zip package.");
+    println!();
+    println!("Upload the .MorSteg.zip file, not the raw image/audio file.");
+    println!();
+    explain_cloud_folder(config);
+    println!();
+
+    let input_file = prompt_existing_file("Steghide file to protect");
+
+    let output_zip = suggested_cloud_zip_path(&input_file, config);
+
+    println!();
+    println!("MorSteg will create:");
+    println!("  {}", output_zip.display());
+    println!();
+
+    if !confirm("Create this cloud-safe package?") {
+        println!("Cancelled.");
+        pause();
+        return;
+    }
+
+    match cloud::package_one_file(&input_file, &output_zip) {
+        Ok(report) => {
+            println!();
+            println!("Cloud-safe package created.");
+            println!("  {}", report.output.display());
+            println!();
+            println!("Inside the package:");
+            for entry in report.entries {
+                println!("  - {entry}");
+            }
+            println!();
+            println!("Lazy rule:");
+            println!("  Upload the .MorSteg.zip package to the cloud.");
+            println!("  Do not upload the raw steghide image/audio file to sites that recompress media.");
+        }
+        Err(err) => {
+            println!();
+            println!("Could not create cloud-safe package.");
+            println!("Error: {err}");
+        }
+    }
+
+    pause();
+}
+
+fn cloud_safe_folder_flow(config: &AppConfig) {
+    clear_screen();
+    print_banner();
+
+    println!("Make a whole folder of steghide files cloud-safe.\n");
+    println!("Use this when you have a folder full of disguised steghide files.");
+    println!("MorSteg will put the entire folder into one .MorSteg.zip package.");
+    println!();
+    println!("Upload the .MorSteg.zip package to the cloud.");
+    println!("Do not upload the raw image/audio files to services that recompress media.");
+    println!();
+    explain_cloud_folder(config);
+    println!();
+
+    let input_dir = prompt_existing_folder("Folder to protect");
+
+    let output_zip = suggested_cloud_zip_path(&input_dir, config);
+
+    println!();
+    println!("MorSteg will create:");
+    println!("  {}", output_zip.display());
+    println!();
+
+    if !confirm("Create this cloud-safe package?") {
+        println!("Cancelled.");
+        pause();
+        return;
+    }
+
+    match cloud::package_directory(&input_dir, &output_zip) {
+        Ok(report) => {
+            println!();
+            println!("Cloud-safe folder package created.");
+            println!("  {}", report.output.display());
+            println!();
+            println!("Packaged {} item(s).", report.entries.len());
+            println!();
+            println!("Lazy rule:");
+            println!("  Upload the .MorSteg.zip package to the cloud.");
+            println!("  Keep the raw steghide files out of image/video/social uploaders.");
+        }
+        Err(err) => {
+            println!();
+            println!("Could not create cloud-safe folder package.");
+            println!("Error: {err}");
+        }
+    }
+
+    pause();
+}
+
+fn suggested_cloud_zip_path(input: &Path, config: &AppConfig) -> PathBuf {
+    let base_dir = active_cloud_dir(config);
+
+    let name = input
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .or_else(|| input.file_name().and_then(|value| value.to_str()))
+        .unwrap_or("MorSteg-package");
+
+    base_dir.join(format!("{name}.MorSteg.zip"))
+}
+
 fn inspect_flow() {
     clear_screen();
     print_banner();
@@ -300,7 +431,7 @@ fn check_deps_flow() {
     print_banner();
 
     println!("Build: {BUILD_MARKER}\n");
-    println!("Checking the tools Mor-SteG needs...\n");
+    println!("Checking the tools MorSteg needs...\n");
 
     if deps::steghide_exists() {
         println!("[OK] steghide is installed. This hides and extracts the encrypted blob.");
@@ -342,7 +473,7 @@ fn choose_output_folder_flow(config: &mut AppConfig) {
 
     match &config.output_dir {
         Some(dir) => println!("Current steghide/output save folder:\n  {}", dir.display()),
-        None => println!("Current steghide/output save folder:\n  the folder you started Mor-SteG from"),
+        None => println!("Current steghide/output save folder:\n  the folder you started MorSteg from"),
     }
 
     println!();
@@ -507,6 +638,83 @@ fn clean_menu_path(input: &str) -> String {
     unescaped
 }
 
+fn choose_cloud_folder_flow(config: &mut AppConfig) {
+    clear_screen();
+    print_banner();
+
+    println!("Choose where cloud-safe packages should be saved.\n");
+    println!("This controls:");
+    println!("  - .MorSteg.zip packages made from one steghide file");
+    println!("  - .MorSteg.zip packages made from a whole folder");
+    println!();
+    println!("It does NOT control raw steghide output files or age key files.");
+    println!();
+
+    println!("Current cloud-safe package folder:");
+    println!("  {}", active_cloud_dir(config).display());
+    println!();
+
+    println!("Lazy mode:");
+    println!("  Paste or drag a folder path here and press Enter.");
+    println!();
+    println!("Other choices:");
+    println!("[1] Choose a cloud-safe package folder");
+    println!("[2] Reset to the default cloud-safe folder");
+    println!("[3] Return to main menu");
+    println!();
+
+    let choice = prompt("Folder path or choice");
+
+    match choice.trim() {
+        "1" => {
+            println!();
+            println!("Enter a folder path.");
+            println!("Tip: You can drag a folder into this terminal and press Enter.");
+            println!();
+
+            let folder = prompt_folder_to_create("Cloud-safe package folder");
+            set_cloud_folder(config, folder);
+        }
+        "2" => {
+            config.cloud_dir = None;
+            println!();
+            println!("Cloud-safe package folder reset to default:");
+            println!("  {}", active_cloud_dir(config).display());
+        }
+        "3" | "q" | "quit" | "back" => {
+            println!();
+            println!("No changes made.");
+        }
+        other => {
+            if other.trim().is_empty() {
+                println!();
+                println!("No changes made.");
+            } else {
+                let folder = std::path::PathBuf::from(clean_menu_path(other));
+                set_cloud_folder(config, folder);
+            }
+        }
+    }
+
+    pause();
+}
+
+fn set_cloud_folder(config: &mut AppConfig, folder: std::path::PathBuf) {
+    if let Err(err) = fs::create_dir_all(&folder) {
+        println!("Could not create folder:");
+        println!("  {}", folder.display());
+        println!("Error: {err}");
+    } else {
+        config.cloud_dir = Some(folder);
+        println!();
+        println!("Cloud-safe package folder updated:");
+        if let Some(dir) = &config.cloud_dir {
+            println!("  {}", dir.display());
+        }
+    }
+}
+
+
 fn age_key_helper_flow(config: &AppConfig) {
     loop {
         clear_screen();
@@ -575,14 +783,14 @@ fn make_age_key_flow(config: &AppConfig, kind: KeyKind) {
     }
 
     let (private_name, public_name) = match kind {
-        KeyKind::Normal => ("mor-steg-age-key.txt", "mor-steg-age-public-key.txt"),
-        KeyKind::PostQuantum => ("mor-steg-pq-key.txt", "mor-steg-pq-public-key.txt"),
+        KeyKind::Normal => ("morsteg-age-key.txt", "morsteg-age-public-key.txt"),
+        KeyKind::PostQuantum => ("morsteg-pq-key.txt", "morsteg-pq-public-key.txt"),
     };
 
     let key_path = key_dir.join(private_name);
     let public_key_path = key_dir.join(public_name);
 
-    println!("Mor-SteG will make these files:\n");
+    println!("MorSteg will make these files:\n");
     println!("PRIVATE KEY FILE, DO NOT SHARE:");
     println!("  {}", key_path.display());
     println!();
@@ -724,7 +932,7 @@ fn show_public_key_from_file_flow() {
 
     println!("Show the public key from one of my key files.\n");
     println!("Choose your private age key file.");
-    println!("Mor-SteG will print the public key and offer to save a separate share-safe public key file.");
+    println!("MorSteg will print the public key and offer to save a separate share-safe public key file.");
     println!();
     println!("Tip: You can drag the key file into this terminal and press Enter.");
     println!();
@@ -796,10 +1004,10 @@ fn explain_age_keys_sleepy_screen() {
 
     println!("The lazy workflow:");
     println!("  1. Use Age key helper -> Make a post-quantum age key for me.");
-    println!("  2. Mor-SteG creates a private key file and a public key file.");
+    println!("  2. MorSteg creates a private key file and a public key file.");
     println!("  3. Give someone the public key file.");
-    println!("  4. They use Mor-SteG option [3] to hide a file for you.");
-    println!("  5. You use Mor-SteG option [4] to open it with your private key file.");
+    println!("  4. They use MorSteg option [3] to hide a file for you.");
+    println!("  5. You use MorSteg option [4] to open it with your private key file.");
     println!();
 
     println!("Short rule:");
@@ -817,17 +1025,17 @@ fn show_key_storage_advice_screen(config: &AppConfig) {
 
     let key_dir = active_key_dir(config);
 
-    println!("Mor-SteG is currently saving age keys here:");
+    println!("MorSteg is currently saving age keys here:");
     println!("  {}", key_dir.display());
     println!();
 
     println!("By default, that is usually:");
-    println!("  ~/.config/mor-steg/keys/");
+    println!("  ~/.config/morsteg/keys/");
     println!();
 
-    println!("For lazy sharing, Mor-SteG creates two files:");
-    println!("  mor-steg-pq-key.txt         private, do not share");
-    println!("  mor-steg-pq-public-key.txt  public, safe to share");
+    println!("For lazy sharing, MorSteg creates two files:");
+    println!("  morsteg-pq-key.txt         private, do not share");
+    println!("  morsteg-pq-public-key.txt  public, safe to share");
     println!();
 
     println!("To change this folder:");
@@ -863,7 +1071,7 @@ fn read_public_key_from_identity_file(path: &Path) -> Option<String> {
 
 fn write_public_key_file(path: &Path, public_key: &str) -> io::Result<()> {
     let contents = format!(
-        "# Mor-SteG public age key\n\
+        "# MorSteg public age key\n\
          # Safe to share. This cannot decrypt files.\n\
          # Give this to someone who wants to hide a file for you.\n\
          {public_key}\n"
@@ -877,7 +1085,7 @@ fn default_public_key_path_for_private_key(private_key: &Path) -> PathBuf {
     let stem = private_key
         .file_stem()
         .and_then(|value| value.to_str())
-        .unwrap_or("mor-steg-age");
+        .unwrap_or("morsteg-age");
 
     parent.join(format!("{stem}-public-key.txt"))
 }

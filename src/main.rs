@@ -1,4 +1,5 @@
 mod app;
+mod cloud;
 mod crypto;
 mod deps;
 mod paths;

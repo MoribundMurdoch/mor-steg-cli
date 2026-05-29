@@ -7,6 +7,7 @@ use crate::ui::{confirm, prompt};
 pub struct AppConfig {
     pub output_dir: Option<PathBuf>,
     pub key_dir: Option<PathBuf>,
+    pub cloud_dir: Option<PathBuf>,
 }
 
 pub fn default_key_dir() -> PathBuf {
@@ -24,8 +25,20 @@ pub fn default_key_dir() -> PathBuf {
     PathBuf::from(".").join("mor-steg-keys")
 }
 
+pub fn default_cloud_dir() -> PathBuf {
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join("MorSteg-Cloud-Safe");
+    }
+
+    PathBuf::from(".").join("MorSteg-Cloud-Safe")
+}
+
 pub fn active_key_dir(config: &AppConfig) -> PathBuf {
     config.key_dir.clone().unwrap_or_else(default_key_dir)
+}
+
+pub fn active_cloud_dir(config: &AppConfig) -> PathBuf {
+    config.cloud_dir.clone().unwrap_or_else(default_cloud_dir)
 }
 
 pub fn explain_output_folder(config: &AppConfig) {
@@ -33,7 +46,7 @@ pub fn explain_output_folder(config: &AppConfig) {
         Some(dir) => {
             println!("Default output folder is set to:");
             println!("  {}", dir.display());
-            println!("If you type only a filename, Mor-SteG will save it there.");
+            println!("If you type only a filename, MorSteg will save it there.");
             println!("You can still type a full path to save somewhere else.");
         }
         None => {
@@ -57,7 +70,16 @@ pub fn explain_key_folder(config: &AppConfig) {
     println!("  {}", dir.display());
     println!();
     println!("Private key files stay there.");
-    println!("Public key files made by Mor-SteG are safe to share.");
+    println!("Public key files made by MorSteg are safe to share.");
+}
+
+pub fn explain_cloud_folder(config: &AppConfig) {
+    let dir = active_cloud_dir(config);
+
+    println!("Cloud-safe packages will save in:");
+    println!("  {}", dir.display());
+    println!();
+    println!("These are the .MorSteg.zip files you upload to cloud storage.");
 }
 
 pub fn prompt_existing_file(label: &str) -> PathBuf {
