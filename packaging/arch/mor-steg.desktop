@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Mor-SteG
+Comment=Noob-friendly steganography helper
+Exec=mor-steg
+Icon=mor-steg
+Terminal=true
+Categories=Utility;Security;Cryptography;
+StartupNotify=false

@@ -1,0 +1,935 @@
+Absolutely. Here is the **rethunk, consolidated checklist** with the new “two lanes” idea included.
+
+# Moribund Flash Deck System Checklist
+
+## Core Principle
+
+```text
+Many input formats.
+One canonical deck format.
+Two user paths.
+One study engine.
+```
+
+The old checklist was mostly about the universal converter. The new version needs to include the product flow too: **Quick Study** and **Deck Library** should both exist. Your old “Choose a deck...” file-picker flow was good for immediate use, but the app also needs a managed library for saved decks, progress, metadata, and editing. 
+
+---
+
+# 1. Main Menu UX
+
+Replace the vague old menu with clearer lanes.
+
+```text
+[ ] Study a Deck...
+[ ] Deck Library
+[ ] Deck Builder
+[ ] Options
+[ ] Controls
+```
+
+## Study a Deck...
+
+Purpose: quick file picker, study anything from anywhere.
+
+```text
+[ ] Opens native file picker immediately.
+[ ] Accepts .mflash.
+[ ] Accepts .mpack.
+[ ] Accepts .json.
+[ ] Accepts .csv.
+[ ] Accepts .txt.
+[ ] Accepts .md / .markdown.
+[ ] Accepts .apkg.
+[ ] Imports external formats into a temporary normalized deck.
+[ ] Starts study immediately.
+[ ] After study, asks: Save converted deck to library?
+```
+
+Rule:
+
+```text
+User can open many formats.
+Study screen still receives one normalized shape.
+```
+
+## Deck Library
+
+Purpose: app-managed saved decks.
+
+```text
+[ ] Shows saved/imported decks.
+[ ] Shows recent decks.
+[ ] Shows deck metadata.
+[ ] Shows study progress later.
+[ ] Opens saved .mflash / .mpack decks.
+[ ] Allows import into library.
+[ ] Allows edit in Deck Builder.
+[ ] Allows rename, duplicate, delete later.
+```
+
+## Deck Builder
+
+Purpose: creation and conversion repair room.
+
+```text
+[ ] Creates new .mflash decks.
+[ ] Imports external files.
+[ ] Shows conversion warnings.
+[ ] Lets user fix cards.
+[ ] Saves clean .mflash.
+[ ] Saves .mpack when media exists.
+```
+
+---
+
+# 2. Architecture Rule
+
+Do not let every screen parse every format.
+
+Correct:
+
+```text
+External file
+  ↓
+Importer
+  ↓
+ImportDeckDraft or MflashDeck
+  ↓
+Study Screen or Deck Builder
+```
+
+Wrong:
+
+```text
+Study screen parses CSV.
+Study screen parses Markdown.
+Study screen parses APKG.
+Study screen parses XML.
+Everyone screams.
+```
+
+Use this division:
+
+```text
+Importers:
+  understand messy file formats
+
+Deck Builder:
+  lets the user repair and improve imported decks
+
+Study Screen:
+  studies normalized decks only
+
+mflash:
+  stable canonical format
+```
+
+This keeps the study engine boring, which is good. Boring here means maintainable, not spiritually beige.
+
+---
+
+# 3. Canonical Formats
+
+## `.mflash`
+
+Use `.mflash` as the main deck format.
+
+```text
+[ ] Human-readable UTF-8 JSON.
+[ ] Full Unicode support.
+[ ] Supports CJK, Georgian, Cyrillic, Greek, IPA, emoji.
+[ ] Supports deck-level language defaults.
+[ ] Supports per-card language overrides.
+[ ] Supports tags.
+[ ] Supports examples.
+[ ] Supports hyperlinks.
+[ ] Supports media references.
+[ ] Supports notes.
+[ ] Supports future unknown fields.
+```
+
+## `.mpack`
+
+Use `.mpack` for decks with bundled media.
+
+Recommended structure:
+
+```text
+my-deck.mpack
+├── deck.mflash
+└── media/
+    ├── cover.png
+    ├── card-0001-audio.mp3
+    └── card-0002-image.jpg
+```
+
+Checklist:
+
+```text
+[ ] Use ZIP for v1.
+[ ] Require deck.mflash at package root.
+[ ] Put media under media/.
+[ ] Use only relative paths inside deck.mflash.
+[ ] Reject absolute paths.
+[ ] Reject ../ path traversal.
+[ ] Sanitize filenames.
+[ ] Rename duplicate files safely.
+[ ] Update media references inside deck.mflash.
+[ ] Allow users to unzip and inspect manually.
+```
+
+---
+
+# 4. Import Model
+
+Add an intermediate model before saving to `.mflash`.
+
+```text
+[ ] Create ImportDeckDraft.
+[ ] Create ImportCardDraft.
+[ ] Importers return ImportDeckDraft.
+[ ] ImportDeckDraft converts to MflashDeck.
+[ ] ImportDeckDraft converts to frontend Deck Builder state.
+[ ] Preserve warnings.
+[ ] Preserve unknown source fields.
+```
+
+Suggested shape:
+
+```rust
+pub struct ImportDeckDraft {
+    pub title: String,
+    pub description: Option<String>,
+    pub snippet: Option<String>,
+    pub default_term_lang: Option<String>,
+    pub default_def_lang: Option<String>,
+    pub deck_tags: Vec<String>,
+    pub cover_media: Option<String>,
+    pub cards: Vec<ImportCardDraft>,
+    pub source_format: String,
+    pub warnings: Vec<String>,
+}
+
+pub struct ImportCardDraft {
+    pub term: String,
+    pub definition: String,
+    pub term_lang: Option<String>,
+    pub def_lang: Option<String>,
+    pub hyperlink: Option<String>,
+    pub media: Option<String>,
+    pub tags: Vec<String>,
+    pub examples: Vec<String>,
+    pub notes: Option<String>,
+    pub source_id: Option<String>,
+    pub extra_fields: serde_json::Value,
+}
+```
+
+Why: the old basic `Deck` model loses metadata. The import draft gives you a safe staging area.
+
+---
+
+# 5. Importer Checklist
+
+## General Importer Rules
+
+```text
+[ ] Return ImportDeckDraft, not low-detail Deck.
+[ ] Fatal error only when no usable cards exist.
+[ ] Preserve Unicode exactly.
+[ ] Preserve unknown metadata in extra_fields.
+[ ] Return warnings for partial problems.
+[ ] Do not silently discard useful fields.
+[ ] Do not silently guess important metadata without user confirmation.
+```
+
+---
+
+## TXT Importer
+
+TXT is lossy, keep it simple.
+
+```text
+[ ] Keep newline-separated cards.
+[ ] Keep semicolon-separated cards if useful.
+[ ] Support tab separator.
+[ ] Support " - " separator.
+[ ] Support comma separator.
+[ ] Do not use bare hyphen as a separator.
+[ ] Prompt for deck title if missing.
+[ ] Prompt for default term language.
+[ ] Prompt for default definition language.
+[ ] Warn when many definitions are empty.
+[ ] Return ImportDeckDraft.
+```
+
+---
+
+## CSV Importer
+
+CSV should become the practical “spreadsheet import” route.
+
+```text
+[ ] Detect headers.
+[ ] Support no-header CSV.
+[ ] Support quoted commas.
+[ ] Support flexible row lengths.
+[ ] Detect term/front/question/word/prompt columns.
+[ ] Detect definition/back/answer/meaning/translation columns.
+[ ] Detect tags column.
+[ ] Detect examples column.
+[ ] Detect term_lang column.
+[ ] Detect def_lang column.
+[ ] Detect hyperlink/link/url column.
+[ ] Detect media/image/audio/file column.
+[ ] Detect notes column.
+[ ] Preserve unknown columns in extra_fields.
+[ ] Prompt for default languages if missing.
+[ ] Return ImportDeckDraft.
+```
+
+---
+
+## Markdown Importer
+
+Markdown can be the “human writer’s format.”
+
+```text
+[ ] Keep heading-pair support.
+[ ] Keep bullet-list support.
+[ ] Keep table support.
+[ ] Keep fenced card block support.
+[ ] Keep glossary style support.
+[ ] Keep term: definition line support.
+[ ] Add YAML front matter.
+[ ] Add richer fenced card blocks.
+[ ] Preserve tags.
+[ ] Preserve examples.
+[ ] Preserve media.
+[ ] Preserve hyperlinks.
+[ ] Preserve notes.
+[ ] Return ImportDeckDraft.
+```
+
+Useful front matter:
+
+```yaml
+---
+title: Mandarin Essentials
+default_term_lang: zh-Hans
+default_def_lang: en
+deck_tags:
+  - mandarin
+  - vocabulary
+---
+```
+
+Useful card block:
+
+````markdown
+```card
+term: 前
+definition: front; ahead
+term_lang: zh-Hans
+def_lang: en
+tags: direction, basic
+hyperlink: https://en.wiktionary.org/wiki/前
+example: 他走在我前面。 | He walks in front of me.
+notes: Common direction word.
+```
+````
+
+---
+
+## JSON Importer
+
+JSON should try strict formats first, then loose formats.
+
+Priority:
+
+```text
+[ ] 1. Valid mflash object.
+[ ] 2. Old MorFlash Deck object.
+[ ] 3. Array of card objects.
+[ ] 4. Array of pairs.
+[ ] 5. Dictionary map.
+[ ] 6. Category map.
+[ ] 7. String array.
+```
+
+Checklist:
+
+```text
+[ ] Preserve unknown fields.
+[ ] Support term/definition.
+[ ] Support front/back.
+[ ] Support question/answer.
+[ ] Support word/meaning.
+[ ] Support prompt/response.
+[ ] Support tags.
+[ ] Support examples.
+[ ] Support media.
+[ ] Support hyperlink.
+[ ] Support notes.
+[ ] Return ImportDeckDraft.
+```
+
+---
+
+## APKG Importer
+
+Do not keep APKG as synthetic TXT forever.
+
+Current bootstrap flow:
+
+```text
+APKG
+  ↓
+SQLite notes.flds
+  ↓
+field 0 and field 1
+  ↓
+synthetic TXT
+  ↓
+TXT importer
+```
+
+Upgrade checklist:
+
+```text
+[ ] Keep ZIP extraction.
+[ ] Keep SQLite reading.
+[ ] Read notes table directly.
+[ ] Read note IDs.
+[ ] Preserve note ID as source_id.
+[ ] Read note tags.
+[ ] Read model field names.
+[ ] Read deck names where practical.
+[ ] Preserve extra Anki fields in extra_fields.
+[ ] Detect [sound:...] references.
+[ ] Detect image references.
+[ ] Read APKG media map.
+[ ] Copy media into mpack media folder later.
+[ ] Stop converting APKG to synthetic TXT.
+[ ] Return ImportDeckDraft.
+```
+
+APKG is where `.mpack` starts to matter.
+
+---
+
+## XML Importer
+
+Do not try “universal XML.” That way lies nonsense.
+
+```text
+[ ] Keep clear not-implemented error for now.
+[ ] Pick one XML format later.
+[ ] Support one XML format at a time.
+[ ] Return ImportDeckDraft when implemented.
+```
+
+Possible future targets:
+
+```text
+simple vocab XML
+QTI
+custom Moribund XML
+Anki-ish XML exports
+```
+
+---
+
+# 6. Language Metadata
+
+Language support is a major reason `.mflash` exists.
+
+Checklist:
+
+```text
+[ ] Add import dialog fields:
+    term language
+    definition language
+    apply to all cards
+[ ] Store as default_term_lang and default_def_lang.
+[ ] Allow per-card overrides in Deck Builder.
+[ ] Use BCP-47-style codes.
+[ ] Show common presets.
+[ ] Let user type custom code.
+```
+
+Common presets:
+
+```text
+en
+fr
+es
+de
+it
+ja
+ko
+zh-Hans
+zh-Hant
+ka
+ru
+el
+la
+```
+
+Inference should suggest, not silently decide:
+
+```text
+[ ] CSV header "English" suggests en.
+[ ] CSV header "Georgian" suggests ka.
+[ ] Markdown front matter overrides guesses.
+[ ] APKG model name can suggest a language.
+[ ] Georgian script suggests ka.
+[ ] Hangul suggests ko.
+[ ] Hiragana/Katakana suggests ja.
+[ ] Han characters should prompt because Chinese and Japanese overlap.
+```
+
+---
+
+# 7. Deck Builder Role
+
+The Deck Builder is not just a blank deck form. It is the **conversion repair room**.
+
+Checklist:
+
+```text
+[ ] Create new deck.
+[ ] Import external file.
+[ ] Receive ImportDeckDraft.
+[ ] Show warnings.
+[ ] Show source format.
+[ ] Let user edit deck title.
+[ ] Let user edit description/snippet.
+[ ] Let user edit deck tags.
+[ ] Let user set default languages.
+[ ] Let user inspect all cards in sidebar.
+[ ] Let user repair term/definition.
+[ ] Let user repair language metadata.
+[ ] Let user add examples.
+[ ] Let user add tags.
+[ ] Let user add media.
+[ ] Let user add hyperlinks.
+[ ] Save as .mflash.
+[ ] Save as .mpack if media exists.
+```
+
+Deck Builder should also support:
+
+```text
+[ ] New Card.
+[ ] Duplicate Card.
+[ ] Remove Card.
+[ ] Previous/Next Card.
+[ ] Search cards.
+[ ] Filter cards with warnings.
+[ ] Filter incomplete cards.
+[ ] Clear draft.
+[ ] Save draft locally.
+```
+
+---
+
+# 8. Study Screen Role
+
+The Study Screen should be simple.
+
+Checklist:
+
+```text
+[ ] Load normalized MflashDeck.
+[ ] Load .mflash directly.
+[ ] Load .mpack by reading deck.mflash inside it.
+[ ] Display term/definition cards.
+[ ] Use examples if study mode supports them.
+[ ] Use media if available.
+[ ] Use tags for filtering later.
+[ ] Track progress separately from deck content.
+[ ] Never parse CSV/TXT/Markdown/APKG directly.
+```
+
+For quick study:
+
+```text
+[ ] User picks external file.
+[ ] Backend imports it to temporary ImportDeckDraft.
+[ ] Convert to temporary MflashDeck.
+[ ] Study temporary deck.
+[ ] At end, ask whether to save to library.
+```
+
+---
+
+# 9. Deck Library Role
+
+Deck Library is the user’s stable local collection.
+
+Checklist:
+
+```text
+[ ] Scan app deck folder.
+[ ] Show .mflash decks.
+[ ] Show .mpack decks.
+[ ] Show title.
+[ ] Show card count.
+[ ] Show tags.
+[ ] Show last studied later.
+[ ] Show progress later.
+[ ] Open deck for study.
+[ ] Edit deck in builder.
+[ ] Import external deck into library.
+[ ] Duplicate deck.
+[ ] Delete deck.
+[ ] Reveal deck file location later.
+```
+
+This is different from Quick Study.
+
+```text
+Quick Study:
+  temporary, open anything, immediate
+
+Deck Library:
+  saved, managed, editable, trackable
+```
+
+---
+
+# 10. File Actions and Tauri Commands
+
+You will likely need these Rust commands:
+
+```text
+[ ] quick_open_deck
+[ ] import_deck_to_draft
+[ ] save_mflash_deck
+[ ] save_mpack_deck
+[ ] load_mflash_deck
+[ ] load_mpack_deck
+[ ] list_library_decks
+[ ] import_deck_to_library
+[ ] delete_library_deck
+[ ] duplicate_library_deck
+[ ] get_recent_decks
+[ ] add_recent_deck
+```
+
+Possible frontend API wrappers:
+
+```js
+quickOpenDeck(path)
+importDeckToDraft(path)
+saveMflashDeck(deck)
+saveMpackDeck(deck, mediaFiles)
+loadDeck(path)
+listLibraryDecks()
+importDeckToLibrary(path)
+deleteLibraryDeck(id)
+duplicateLibraryDeck(id)
+```
+
+Rule:
+
+```text
+Screens call api.js.
+api.js calls Tauri.
+Tauri calls Rust.
+Rust touches files.
+```
+
+---
+
+# 11. Recents and Progress
+
+These are separate from deck files.
+
+Checklist:
+
+```text
+[ ] Recent decks store path, title, last_opened.
+[ ] Study progress stores deck identity separately.
+[ ] Do not mutate imported original files unless user explicitly saves.
+[ ] Use stable deck id later.
+[ ] For temporary imported decks, ask user to save before tracking long-term progress.
+```
+
+Possible storage:
+
+```text
+App config:
+  recent_decks.json
+
+Progress:
+  progress/
+    deck-id.json
+```
+
+Do not put progress inside `.mflash` unless you intentionally want deck files to change after every study session.
+
+---
+
+# 12. Schema Evolution
+
+Before going too far, fix the schema/model mismatch.
+
+Checklist:
+
+```text
+[ ] Confirm notes exists in Rust model and schema.
+[ ] Add source metadata if wanted.
+[ ] Add source_id per card if wanted.
+[ ] Add extra_fields per card if wanted.
+[ ] Decide singular media or plural media.
+[ ] Decide whether import warnings are saved or only shown during import.
+[ ] Allow unknown fields for forward compatibility.
+[ ] Keep v1 human-readable.
+```
+
+Suggested deck-level addition:
+
+```json
+{
+  "source": {
+    "format": "apkg",
+    "original_file": "deck.apkg",
+    "imported_at": "2026-05-10T03:00:00Z"
+  }
+}
+```
+
+Suggested card-level additions:
+
+```json
+{
+  "source_id": "anki-note-123456",
+  "notes": "extra note text",
+  "extra_fields": {
+    "Mnemonic": "...",
+    "Part of Speech": "noun"
+  }
+}
+```
+
+---
+
+# 13. Unicode and Text Safety
+
+Checklist:
+
+```text
+[ ] Treat text files as UTF-8.
+[ ] Preserve Unicode.
+[ ] Never assume ASCII.
+[ ] Normalize Windows line endings.
+[ ] Avoid destructive cleanup.
+[ ] Strip only known import-specific markup.
+[ ] Keep original text if uncertain.
+```
+
+Supported scripts should include:
+
+```text
+CJK
+Georgian
+Cyrillic
+Greek
+Latin with accents
+IPA
+emoji
+```
+
+---
+
+# 14. Media Safety
+
+Checklist:
+
+```text
+[ ] Never trust imported paths blindly.
+[ ] Keep hyperlinks separate from media paths.
+[ ] Copy media into app-controlled folder or mpack.
+[ ] Store only relative media paths in .mflash.
+[ ] Sanitize filenames.
+[ ] Handle duplicates.
+[ ] Reject absolute paths in packages.
+[ ] Reject ../ path traversal.
+[ ] Do not fetch remote media automatically.
+```
+
+---
+
+# 15. Error and Warning Strategy
+
+Importers should not just return success/failure. They should return useful warnings.
+
+Checklist:
+
+```text
+[ ] Warn when definitions are missing.
+[ ] Warn when media references are unresolved.
+[ ] Warn when language guess is uncertain.
+[ ] Warn when APKG fields were preserved in extra_fields.
+[ ] Warn when unsupported fields were ignored.
+[ ] Warn when duplicate media filenames were renamed.
+[ ] Fatal error only when zero usable cards exist.
+```
+
+Example import summary:
+
+```text
+Imported 430 cards.
+12 cards had empty definitions.
+8 media references could not be found.
+Language guessed as Japanese, please confirm.
+Extra Anki fields were preserved.
+```
+
+---
+
+# 16. Implementation Order
+
+
+
+## Cleaned Project Roadmap
+
+Here is your updated checklist with the redundancies removed and the remaining tasks organized logically.
+
+### Phase 3B: Saved Deck Loading & Study Screen
+
+* [x] Add/register Rust `load_deck` command.
+* [x] Make Deck Library item click load the selected deck.
+* [ ] Normalize loaded `.mflash` v1 into study-card data.
+* [ ] Create multiple-choice study screen route.
+* [ ] Route saved deck -> study screen.
+* [ ] Add correct/wrong feedback highlights.
+* [ ] Add correct/wrong sounds.
+* [ ] Add keyboard shortcuts 1–4.
+* [ ] Add progress tracking and simple completion screen.
+* [ ] Add draggable media window support.
+* [ ] Add future-ready customizable study background hook.
+
+### Phase 4A: Tauri Media Importer
+
+* [ ] Add accepted media extension checks.
+* [ ] Add deck cover/media drop zone.
+* [ ] Add active card media drop zone.
+* [ ] Fill `mediaPath` from dropped file.
+* [ ] Warn if file path is unavailable.
+* [ ] Add Rust `pick_media_file` command.
+* [ ] Add Rust `import_media_file` command.
+* [ ] Copy media into app data / media folder.
+* [ ] Return stable copied media path.
+* [ ] Wire Deck Builder "Browse" buttons to native picker.
+* [ ] Wire drop zones to importer when a usable path exists.
+
+[ ] Add study route in main.js if missing.
+[ ] Inspect/fix src/screens/study.js.
+[ ] Make study screen call loadDeck({ path: deckPath }).
+[ ] Normalize loaded .mflash v1 into study-card data.
+[ ] Route saved deck -> study screen successfully.
+
+## Phase 4: Convert simple importers
+
+```text
+[ ] TXT to ImportDeckDraft.
+[ ] CSV to ImportDeckDraft.
+[ ] JSON to ImportDeckDraft.
+[ ] Markdown to ImportDeckDraft.
+```
+
+## Phase 5: Deck Builder import flow
+
+```text
+[ ] Import file into Deck Builder.
+[ ] Show warnings.
+[ ] Show imported cards in sidebar.
+[ ] Let user repair.
+[ ] Save as .mflash.
+```
+
+## Phase 6: Quick Study flow
+
+```text
+[ ] File picker from Study a Deck...
+[ ] If .mflash, load directly.
+[ ] If .mpack, load package.
+[ ] If external format, import to temporary MflashDeck.
+[ ] Start study.
+[ ] Offer Save to Library after study.
+```
+
+## Phase 7: Deck Library
+
+```text
+[ ] List saved .mflash decks.
+[ ] List saved .mpack decks.
+[ ] Open deck.
+[ ] Edit deck.
+[ ] Import to library.
+[ ] Delete deck.
+```
+
+## Phase 8: APKG upgrade
+
+```text
+[ ] Stop synthetic TXT conversion.
+[ ] Map SQLite notes directly.
+[ ] Preserve tags.
+[ ] Preserve note IDs.
+[ ] Preserve extra fields.
+[ ] Preserve media references.
+```
+
+## Phase 9: mpack
+
+```text
+[ ] ZIP writer.
+[ ] ZIP reader.
+[ ] deck.mflash root rule.
+[ ] media/ folder rule.
+[ ] path validation.
+[ ] media copy logic.
+```
+
+## Phase 10: Progress and recents
+
+```text
+[ ] Add recent decks.
+[ ] Add study progress storage.
+[ ] Keep progress separate from deck content.
+```
+
+---
+
+# 17. Final Decision Rules
+
+When unsure, use these:
+
+```text
+If the user wants to study right now:
+  Study a Deck...
+
+If the user wants a stable saved collection:
+  Deck Library
+
+If the user wants to create or repair a deck:
+  Deck Builder
+
+If the file is messy:
+  ImportDeckDraft
+
+If the file is clean and canonical:
+  MflashDeck
+
+If the deck has media:
+  mpack
+
+If the study screen starts parsing CSV:
+  Stop. The raccoon has entered the circuitry.
+```
+
+This version is the stronger plan: it keeps the old file-picker convenience, adds a real library model, protects the study screen from importer chaos, and makes `.mflash` the center of the system.

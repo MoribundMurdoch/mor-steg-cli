@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP="/usr/bin/mor-steg"
+
+if ! command -v bwrap >/dev/null 2>&1; then
+  echo "Bubblewrap was not found."
+  echo
+  echo "Install it on Arch with:"
+  echo "  sudo pacman -S bubblewrap"
+  echo
+  echo "Then run this again."
+  exit 1
+fi
+
+if [[ ! -x "$APP" ]]; then
+  echo "Mor-SteG was not found at:"
+  echo "  $APP"
+  exit 1
+fi
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mor-steg"
+KEY_DIR="$CONFIG_DIR/keys"
+OUTPUT_DIR="$HOME/Mor-SteG-Output"
+WORK_DIR="$HOME/Mor-SteG-Work"
+
+mkdir -p "$KEY_DIR" "$OUTPUT_DIR" "$WORK_DIR"
+
+echo "Mor-SteG Sandboxed Mode"
+echo
+echo "Inside the sandbox, Mor-SteG can use:"
+echo "  Work folder:   $WORK_DIR"
+echo "  Output folder: $OUTPUT_DIR"
+echo "  Key folder:    $KEY_DIR"
+echo
+echo "Tip:"
+echo "  Put cover files and secret files in:"
+echo "    $WORK_DIR"
+echo
+echo "  Save new files in:"
+echo "    $OUTPUT_DIR"
+echo
+echo "Starting sandbox..."
+echo
+
+exec bwrap \
+  --die-with-parent \
+  --new-session \
+  --unshare-all \
+  --ro-bind /usr /usr \
+  --ro-bind /etc /etc \
+  --ro-bind /bin /bin \
+  --ro-bind-try /sbin /sbin \
+  --ro-bind-try /lib /lib \
+  --ro-bind-try /lib64 /lib64 \
+  --dev /dev \
+  --proc /proc \
+  --tmpfs /tmp \
+  --bind "$CONFIG_DIR" "$CONFIG_DIR" \
+  --bind "$OUTPUT_DIR" "$OUTPUT_DIR" \
+  --bind "$WORK_DIR" "$WORK_DIR" \
+  --setenv HOME "$HOME" \
+  --setenv XDG_CONFIG_HOME "${XDG_CONFIG_HOME:-$HOME/.config}" \
+  --setenv PATH "/usr/bin:/bin" \
+  --chdir "$WORK_DIR" \
+  "$APP"

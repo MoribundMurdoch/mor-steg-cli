@@ -1,0 +1,9 @@
+[package]
+name = "mor-steg"
+version = "0.1.0"
+edition = "2021"
+license = "Unlicense"
+description = "A noob-friendly Rust front-end for steghide and age."
+
+[dependencies]
+tempfile = "3"
