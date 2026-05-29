@@ -4,3 +4,7 @@
 *.pkg.tar.zst
 *.pkg.tar.zst.sig
 .DS_Store
+
+/dist/
+
+/dist/

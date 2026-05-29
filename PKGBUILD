@@ -1,7 +1,7 @@
 # Maintainer: Moribund Murdoch <moribundmurdoch@gmail.com>
 
 pkgname=mor-steg
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="A noob-friendly Rust front-end for age and steghide"
 arch=('x86_64')
